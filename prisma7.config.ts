@@ -14,4 +14,3 @@ export default defineConfig({
 });
 
 
-// set up Prisma 7 with Neon Postgres and add User model

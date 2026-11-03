@@ -5,7 +5,7 @@ import { DatabaseService } from '../database/database.service.js';
 import * as bcrypt from 'bcrypt';
 import { LoginAuthDto } from './dto/login-auth.dto.js';
 import { JwtService } from '@nestjs/jwt';
-
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class AuthService {
@@ -28,8 +28,8 @@ export class AuthService {
       }
     });
 
-    const {accessToken}=await this.generateToken(user.id, email);
-    return {user, accessToken};
+    const { accessToken, refreshToken } = await this.generateToken(user.id);
+    return { user: { id: user.id, name: user.name, email: user.email }, accessToken, refreshToken };
   }
 
   async login(loginData: LoginAuthDto) {
@@ -45,12 +45,48 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    return this.generateToken(exisitingUser.id, email);
+    return this.generateToken(exisitingUser.id);
   }
 
-  async generateToken(userId: number, email: string) {
-    const payload = { userId, email };
+  async generateRefreshToken(refreshToken: string) {
+    const existingToken = await this.databaseService.refreshToken.findFirst({
+      where: {
+        token: refreshToken,
+        expiryDate: { gte: new Date() }
+      }
+    });
+
+    if (!existingToken) {
+      // in this case frontend sends back user to login page to get brand new access and refresh token and then save the refresh token
+      throw new UnauthorizedException('Refresh token is not valid or expired');
+    }
+
+    //  token is valid and not yet expired so first delete the older one
+    await this.databaseService.refreshToken.delete({
+      where: { id: existingToken.id }
+    });
+
+
+    // generate the new tokens
+    return await this.generateToken(existingToken.userId);
+  }
+
+  async generateToken(userId: number) {
+    const payload = { userId };
     const accessToken = await this.jwtService.signAsync(payload);
-    return { accessToken };
+
+    const refreshToken = uuidv4();
+    await this.storeRefreshToken(refreshToken, userId);
+    return { accessToken, refreshToken };
+  }
+
+  async storeRefreshToken(token: string, userId: number) {
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + 3);
+    await this.databaseService.refreshToken.create({
+      data: {
+        token, userId, expiryDate
+      }
+    })
   }
 }

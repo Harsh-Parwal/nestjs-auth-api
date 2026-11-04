@@ -83,8 +83,12 @@ export class AuthService {
   async storeRefreshToken(token: string, userId: number) {
     const expiryDate = new Date();
     expiryDate.setDate(expiryDate.getDate() + 3);
-    await this.databaseService.refreshToken.create({
-      data: {
+    await this.databaseService.refreshToken.upsert({
+      where: { userId },
+      update: {
+        token, expiryDate
+      },
+      create: {
         token, userId, expiryDate
       }
     })

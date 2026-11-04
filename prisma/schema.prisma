@@ -20,13 +20,13 @@ model User {
   password      String
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
-  refreshTokens RefreshToken[]
+  refreshToken RefreshToken?
 }
 
 model RefreshToken {
   id         Int      @id @default(autoincrement())
   token      String   @unique
-  userId     Int
+  userId     Int      @unique
   user       User     @relation(fields: [userId], references: [id])
   expiryDate DateTime
   createdAt  DateTime @default(now())

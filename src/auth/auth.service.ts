@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { SignupAuthDto } from './dto/signup-auth.dto.js';
 import { DatabaseService } from '../database/database.service.js';
+import { MyLoggerService } from '../my-logger/my-logger.service.js';
 
 import * as bcrypt from 'bcrypt';
 import { LoginAuthDto } from './dto/login-auth.dto.js';
@@ -10,6 +11,7 @@ import { v4 as uuidv4 } from 'uuid';
 @Injectable()
 export class AuthService {
   constructor(private databaseService: DatabaseService, private jwtService: JwtService) { }
+  private readonly logger = new MyLoggerService(AuthService.name);
 
   async signup(signupData: SignupAuthDto) {
     const { name, email, password } = signupData;
@@ -28,24 +30,26 @@ export class AuthService {
       }
     });
 
+    this.logger.log(`New user signed up: id=${user.id}`);
     const { accessToken, refreshToken } = await this.generateToken(user.id);
     return { user: { id: user.id, name: user.name, email: user.email }, accessToken, refreshToken };
   }
 
   async login(loginData: LoginAuthDto) {
     const { email, password } = loginData;
-    const exisitingUser = await this.databaseService.user.findUnique({ where: { email } });
+    const existingUser = await this.databaseService.user.findUnique({ where: { email } });
 
-    if (!exisitingUser) {
+    if (!existingUser) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const validPassword = await bcrypt.compare(password, exisitingUser.password);
+    const validPassword = await bcrypt.compare(password, existingUser.password);
     if (!validPassword) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    return this.generateToken(exisitingUser.id);
+    this.logger.log(`User logged in: id=${existingUser.id}`);
+    return this.generateToken(existingUser.id);
   }
 
   async generateRefreshToken(refreshToken: string) {
@@ -66,7 +70,7 @@ export class AuthService {
       where: { id: existingToken.id }
     });
 
-
+    this.logger.log(`Refresh token used: userId=${existingToken.userId}`)
     // generate the new tokens
     return await this.generateToken(existingToken.userId);
   }

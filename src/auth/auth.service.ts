@@ -35,6 +35,7 @@ export class AuthService {
     return { user: { id: user.id, name: user.name, email: user.email }, accessToken, refreshToken };
   }
 
+
   async login(loginData: LoginAuthDto) {
     const { email, password } = loginData;
     const existingUser = await this.databaseService.user.findUnique({ where: { email } });
@@ -51,6 +52,7 @@ export class AuthService {
     this.logger.log(`User logged in: id=${existingUser.id}`);
     return this.generateToken(existingUser.id);
   }
+
 
   async generateRefreshToken(refreshToken: string) {
     const existingToken = await this.databaseService.refreshToken.findFirst({
@@ -75,6 +77,7 @@ export class AuthService {
     return await this.generateToken(existingToken.userId);
   }
 
+
   async generateToken(userId: number) {
     const payload = { userId };
     const accessToken = await this.jwtService.signAsync(payload);
@@ -83,6 +86,7 @@ export class AuthService {
     await this.storeRefreshToken(refreshToken, userId);
     return { accessToken, refreshToken };
   }
+
 
   async storeRefreshToken(token: string, userId: number) {
     const expiryDate = new Date();
@@ -96,5 +100,23 @@ export class AuthService {
         token, userId, expiryDate
       }
     })
+  }
+
+
+  async getUserInfo(userId: number) {
+    const existingUser=await this.databaseService.user.findUnique({
+      where:{
+        id: userId,
+      },
+      select:{
+        id: true, name: true, email: true
+      }
+    });
+
+    if(!existingUser){
+      throw new UnauthorizedException('User not found');
+    }
+
+    return existingUser;
   }
 }

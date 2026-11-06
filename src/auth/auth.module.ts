@@ -8,7 +8,8 @@ import { PassportModule } from '@nestjs/passport';
 import { JwtStrategy } from './strategies/jwt.strategy.js';
 
 @Module({
-  imports: [DatabaseModule,
+  imports: [
+    DatabaseModule,
     PassportModule,
     JwtModule.registerAsync({
       inject: [ConfigService],

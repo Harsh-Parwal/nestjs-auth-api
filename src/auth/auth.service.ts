@@ -54,6 +54,24 @@ export class AuthService {
   }
 
 
+  async getUserInfo(userId: number) {
+    const existingUser = await this.databaseService.user.findUnique({
+      where: {
+        id: userId,
+      },
+      select: {
+        id: true, name: true, email: true
+      }
+    });
+
+    if (!existingUser) {
+      throw new UnauthorizedException('User not found');
+    }
+    this.logger.log(`User id=${existingUser.id} accessed protected route /auth/me`);
+    return existingUser;
+  }
+
+
   async generateRefreshToken(refreshToken: string) {
     const existingToken = await this.databaseService.refreshToken.findFirst({
       where: {
@@ -100,23 +118,5 @@ export class AuthService {
         token, userId, expiryDate
       }
     })
-  }
-
-
-  async getUserInfo(userId: number) {
-    const existingUser=await this.databaseService.user.findUnique({
-      where:{
-        id: userId,
-      },
-      select:{
-        id: true, name: true, email: true
-      }
-    });
-
-    if(!existingUser){
-      throw new UnauthorizedException('User not found');
-    }
-
-    return existingUser;
   }
 }

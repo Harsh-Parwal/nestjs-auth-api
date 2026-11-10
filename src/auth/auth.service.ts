@@ -20,7 +20,7 @@ export class AuthService {
     });
 
     if (existingUser) {
-      throw new ConflictException('Email already in use');
+      throw new ConflictException('Email already in use. Please try sign in using Google.');
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -40,7 +40,7 @@ export class AuthService {
     const { email, password } = loginData;
     const existingUser = await this.databaseService.user.findUnique({ where: { email } });
 
-    if (!existingUser) {
+    if (!existingUser || !existingUser.password) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -50,7 +50,32 @@ export class AuthService {
     }
 
     this.logger.log(`User logged in: id=${existingUser.id}`);
-    return this.generateToken(existingUser.id);
+    const { accessToken, refreshToken } = await this.generateToken(existingUser.id);
+    return {user: {id: existingUser.id, name: existingUser.name, email: existingUser.email}, accessToken, refreshToken};
+  }
+
+
+  async generateRefreshToken(refreshToken: string) {
+    const existingToken = await this.databaseService.refreshToken.findUnique({
+      where: {
+        token: refreshToken,
+        expiryDate: { gte: new Date() }
+      }
+    });
+
+    if (!existingToken) {
+      // in this case frontend sends back user to login page to get brand new access and refresh token and then save the refresh token
+      throw new UnauthorizedException('Refresh token is not valid or expired');
+    }
+
+    //  token is valid and not yet expired so first delete the older one
+    await this.databaseService.refreshToken.delete({
+      where: { id: existingToken.id }
+    });
+
+    this.logger.log(`Refresh token used: userId=${existingToken.userId}`)
+    // generate the new tokens
+    return await this.generateToken(existingToken.userId);
   }
 
 
@@ -72,27 +97,31 @@ export class AuthService {
   }
 
 
-  async generateRefreshToken(refreshToken: string) {
-    const existingToken = await this.databaseService.refreshToken.findFirst({
-      where: {
-        token: refreshToken,
-        expiryDate: { gte: new Date() }
+  async googleLogin(googleUser: { googleId: string; email: string; name: string; emailVerified: boolean }) {
+    const { googleId, email, name, emailVerified } = googleUser;
+    let user = await this.databaseService.user.findUnique({ where: { googleId } });
+    if (!user) {
+      const existingUser = await this.databaseService.user.findUnique({ where: { email } });
+      // signup with google
+      if (!existingUser) {
+        user = await this.databaseService.user.create({ data: { name, email, googleId } });
       }
-    });
-
-    if (!existingToken) {
-      // in this case frontend sends back user to login page to get brand new access and refresh token and then save the refresh token
-      throw new UnauthorizedException('Refresh token is not valid or expired');
+      // maybe this user prevoiusly signed up using credentials (email+password)
+      else {
+        if (!emailVerified) {
+          throw new UnauthorizedException('Google email is not verified');
+        }
+        if (existingUser.googleId) {
+          throw new ConflictException('Email is already linked to another Google account');
+        }
+        // link the googleId with already exisiting email
+        user = await this.databaseService.user.update({ where: { id: existingUser.id }, data: { googleId } });
+      }
     }
 
-    //  token is valid and not yet expired so first delete the older one
-    await this.databaseService.refreshToken.delete({
-      where: { id: existingToken.id }
-    });
-
-    this.logger.log(`Refresh token used: userId=${existingToken.userId}`)
-    // generate the new tokens
-    return await this.generateToken(existingToken.userId);
+    this.logger.log(`User logged in with Google: id=${user.id}`);
+    const { accessToken, refreshToken } = await this.generateToken(user.id);
+    return { user: { id: user.id, email: user.email, name: user.name }, refreshToken, accessToken };
   }
 
 

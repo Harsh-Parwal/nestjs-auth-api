@@ -7,6 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { PassportModule } from '@nestjs/passport';
 import { JwtStrategy } from './strategies/jwt.strategy.js';
 import { GoogleStrategy } from './strategies/google.strategy.js';
+import { MailModule } from '../mail/mail.module.js';
 
 @Module({
   imports: [
@@ -18,7 +19,8 @@ import { GoogleStrategy } from './strategies/google.strategy.js';
         secret: config.getOrThrow<string>('JWT_SECRET'),
         signOptions: { expiresIn: '15m' }
       })
-    })
+    }),
+    MailModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, GoogleStrategy],

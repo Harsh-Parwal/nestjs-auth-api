@@ -7,10 +7,12 @@ import { AuthModule } from './auth/auth.module.js';
 import { MyLoggerModule } from './my-logger/my-logger.module.js';
 import { APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard.js';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ThrottlerModule.forRoot([{ ttl: 60000, limit: 60 }]),
     DatabaseModule,
     AuthModule,
     MyLoggerModule,
@@ -19,6 +21,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard.js';
   providers: [
     AppService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_PIPE, useValue: new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }) }
   ],
 })
